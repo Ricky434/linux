@@ -2314,6 +2314,7 @@ struct sock *mptcp_subflow_get_retrans(struct mptcp_sock *msk)
 	int min_stale_count = INT_MAX;
 
 	mptcp_for_each_subflow(msk, subflow) {
+		trace_mptcp_subflow_get_retrans(subflow);
 		struct sock *ssk = mptcp_subflow_tcp_sock(subflow);
 
 		if (!__mptcp_subflow_active(subflow))
@@ -2341,6 +2342,62 @@ struct sock *mptcp_subflow_get_retrans(struct mptcp_sock *msk)
 
 	/* use backup only if there are no progresses anywhere */
 	return min_stale_count > 1 ? backup : NULL;
+}
+
+struct sock *mptcp_subflow_get_roundrobin(struct mptcp_sock *msk)
+{
+	struct subflow_send_info send_info[SSK_MODE_MAX];
+	struct mptcp_subflow_context *subflow;
+	struct sock *sk = (struct sock *)msk;
+	u32 burst;
+	int i = 0;
+	struct sock *ssk;
+	long tout = 0;
+
+	for (i = 0; i < SSK_MODE_MAX; ++i) {
+		send_info[i].ssk = NULL;
+		send_info[i].linger_time = -1;
+	}
+
+	mptcp_for_each_subflow(msk, subflow) {
+		trace_mptcp_subflow_get_send(subflow);
+		ssk =  mptcp_subflow_tcp_sock(subflow);
+		if (!mptcp_subflow_active(subflow))
+			continue;
+
+		if (!send_info[SSK_MODE_BACKUP].ssk)
+			send_info[SSK_MODE_BACKUP].ssk = ssk;
+		if (subflow->already_chosen)
+			continue;
+
+		send_info[SSK_MODE_ACTIVE].ssk = ssk;
+		break;
+	}
+	__mptcp_set_timeout(sk, tout);
+
+	// If all subflows were set as already chosen,
+	// take the first subflow, and reset all subflows status
+	if (!send_info[SSK_MODE_ACTIVE].ssk) {
+		send_info[SSK_MODE_ACTIVE].ssk = send_info[SSK_MODE_BACKUP].ssk;
+
+		mptcp_for_each_subflow(msk, subflow) {
+			subflow->already_chosen = false;
+		}
+	}
+
+	ssk = send_info[SSK_MODE_ACTIVE].ssk;
+	if (!ssk || !sk_stream_memory_free(ssk))
+		return NULL;
+
+	subflow = mptcp_subflow_ctx(ssk);
+	subflow->already_chosen = true;
+
+	burst = min_t(int, MPTCP_SEND_BURST_SIZE, mptcp_wnd_end(msk) - msk->snd_nxt);
+	if (!burst)
+		return ssk;
+
+	msk->snd_burst = burst;
+	return ssk;
 }
 
 bool __mptcp_retransmit_pending_data(struct sock *sk)

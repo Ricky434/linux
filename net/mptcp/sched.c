@@ -30,9 +30,30 @@ static int mptcp_sched_default_get_subflow(struct mptcp_sock *msk,
 	return 0;
 }
 
+static int mptcp_sched_roundrobin_get_subflow(struct mptcp_sock *msk,
+					   struct mptcp_sched_data *data)
+{
+	struct sock *ssk;
+
+	ssk = data->reinject ? mptcp_subflow_get_retrans(msk) :
+			       mptcp_subflow_get_roundrobin(msk);
+
+	if (!ssk)
+		return -EINVAL;
+
+	mptcp_subflow_set_scheduled(mptcp_subflow_ctx(ssk), true);
+	return 0;
+}
+
 static struct mptcp_sched_ops mptcp_sched_default = {
 	.get_subflow	= mptcp_sched_default_get_subflow,
 	.name		= "default",
+	.owner		= THIS_MODULE,
+};
+
+static struct mptcp_sched_ops mptcp_sched_roundrobin = {
+	.get_subflow	= mptcp_sched_roundrobin_get_subflow,
+	.name		= "roundrobin",
 	.owner		= THIS_MODULE,
 };
 
@@ -103,6 +124,7 @@ void mptcp_unregister_scheduler(struct mptcp_sched_ops *sched)
 void mptcp_sched_init(void)
 {
 	mptcp_register_scheduler(&mptcp_sched_default);
+	mptcp_register_scheduler(&mptcp_sched_roundrobin);
 }
 
 int mptcp_init_sched(struct mptcp_sock *msk,

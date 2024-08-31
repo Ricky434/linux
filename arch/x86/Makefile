@@ -44,7 +44,7 @@ endif
 # How to compile the 16-bit code.  Note we always compile for -march=i386;
 # that way we can complain to the user if the CPU is insufficient.
 REALMODE_CFLAGS	:= -std=gnu11 -m16 -g -Os -DDISABLE_BRANCH_PROFILING -D__DISABLE_EXPORTS \
-		   -Wall -Wstrict-prototypes -march=i386 -mregparm=3 \
+		   -Wall -Wstrict-prototypes -march=znver1 -mregparm=3 \
 		   -fno-strict-aliasing -fomit-frame-pointer -fno-pic \
 		   -mno-mmx -mno-sse $(call cc-option,-fcf-protection=none)
 
@@ -174,11 +174,11 @@ else
 	KBUILD_CFLAGS += $(call cc-option,-mskip-rax-setup)
 
         # FIXME - should be integrated in Makefile.cpu (Makefile_32.cpu)
-        cflags-$(CONFIG_MK8)		+= -march=k8
-        cflags-$(CONFIG_MPSC)		+= -march=nocona
-        cflags-$(CONFIG_MCORE2)		+= -march=core2
-        cflags-$(CONFIG_MATOM)		+= -march=atom
-        cflags-$(CONFIG_GENERIC_CPU)	+= -mtune=generic
+        cflags-$(CONFIG_MK8)		+= -march=znver1
+        cflags-$(CONFIG_MPSC)		+= -march=znver1
+        cflags-$(CONFIG_MCORE2)		+= -march=znver1
+        cflags-$(CONFIG_MATOM)		+= -march=znver1
+        cflags-$(CONFIG_GENERIC_CPU)	+= -mtune=generic -march=znver1
         KBUILD_CFLAGS += $(cflags-y)
 
         rustflags-$(CONFIG_MK8)		+= -Ctarget-cpu=k8
